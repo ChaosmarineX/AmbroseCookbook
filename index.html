@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ambrose Collection</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-app: #f2f2f7;
+            --bg-panel: #ffffff;
+            --border: #d1d1d6;
+            --accent: #d32f2f;
+            --live-green: #2e7d32;
+            --text: #1c1c1e;
+            --text-sub: #8e8e93;
+            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-serif: "Georgia", "Times New Roman", serif;
+            --sidebar-width: 300px;
+            --header-height: 50px;
+        }
+
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: var(--font-main); background: var(--bg-app); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* UTILS */
+        .hidden { display: none !important; }
+        .btn-black { background: #222; color: #fff; padding: 8px 16px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; }
+        .btn-action { background: var(--accent); color: white; border:none; border-radius:4px; padding:6px 12px; font-weight:600; cursor:pointer;}
+        .btn-outline { background: transparent; border: 1px solid #ccc; color: #555; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+        input, select, textarea { background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 8px; font-size: 14px; width: 100%; outline: none; }
+
+        /* LOADER */
+        #loader { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #fff; z-index: 9999; display: flex; align-items: center; justify-content: center; }
+        .book-cover { border: 4px double #333; padding: 50px 40px; width: 400px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.15); background: #fff; }
+        .book-title { font-family: var(--font-serif); font-size: 2.5em; line-height: 1.1; margin-bottom: 20px; color: #111; }
+
+        /* APP BAR */
+        .app-bar { height: var(--header-height); background: #1c1c1e; color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; flex-shrink: 0; }
+        .app-title { font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+        .live-badge { color: var(--live-green); font-size: 0.7em; border: 1px solid var(--live-green); padding: 2px 6px; border-radius: 4px; letter-spacing: 1px; }
+        .bar-controls { display: flex; gap: 10px; align-items: center; }
+        input#search-input { background: #3a3a3c; border: none; color: white; width: 200px; }
+        button.tool-btn { cursor: pointer; border: none; border-radius: 4px; font-size: 12px; font-weight: 600; padding: 6px 12px; background: #3a3a3c; color: #fff; }
+        button.tool-btn.active { background: #fff; color: #000; }
+
+        /* LAYOUT */
+        .workspace { display: flex; height: calc(100vh - var(--header-height)); }
+        .sidebar { width: var(--sidebar-width); background: #f2f2f7; border-right: 1px solid #c6c6c8; overflow-y: auto; }
+        .group-header { padding: 8px 15px; background: #e5e5ea; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #666; position: sticky; top: 0; border-bottom: 1px solid #d1d1d6; }
+        .list-item { padding: 12px 15px; border-bottom: 1px solid #e5e5ea; cursor: pointer; background: #fff; }
+        .list-item:hover { background: #f9f9f9; }
+        .list-item.selected { background: #f0f0f0; border-left: 4px solid var(--accent); }
+        .li-title { font-weight: 600; font-size: 14px; color: #000; }
+        .li-meta { font-size: 12px; color: #8e8e93; display: flex; justify-content: space-between; }
+
+        .main-stage { flex: 1; overflow-y: auto; background: #fff; position: relative; }
+
+        /* WEB VIEW */
+        #web-view { padding: 40px; max-width: 850px; margin: 0 auto; }
+        .wv-header { border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-start; }
+        .wv-title { font-size: 2.2em; font-weight: 800; line-height: 1.1; margin: 0 0 10px 0; color: #111; }
+        .wv-layout { display: grid; grid-template-columns: 260px 1fr; gap: 50px; }
+        .wv-ing-head { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+        .wv-ing-list { list-style: none; padding: 0; margin: 0 0 20px 0; font-size: 14px; }
+        .wv-ing-list li { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dotted #eee; }
+        .wv-steps ol { padding-left: 20px; font-size: 16px; line-height: 1.6; color: #222; }
+        .chef-note { background: #fffaf0; padding: 15px; border-left: 3px solid #f0ad4e; margin-top: 30px; font-size: 14px; font-style: italic; color: #555; }
+
+        /* LOGS */
+        .log-section { margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; }
+        .log-item { display: flex; gap: 10px; margin-bottom: 10px; font-size: 14px; }
+        .log-date { font-weight: 700; color: #333; min-width: 90px; }
+        .log-user { color: var(--accent); font-weight: 600; margin-right: 5px; }
+        .add-log-box { display: none; background: #f9f9f9; padding: 15px; border-radius: 4px; margin-top: 15px; border: 1px solid #eee; }
+        .add-log-box.active { display: block; }
+
+        /* ADD RECIPE MODAL */
+        #add-modal { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.5); z-index: 9000; display: none; align-items: center; justify-content: center; }
+        .modal-card { background: white; padding: 30px; width: 500px; max-width: 90%; border-radius: 8px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto; }
+        .modal-header { font-size: 1.5em; font-weight: bold; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .form-row { margin-bottom: 15px; }
+        .form-label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #666; text-transform: uppercase; }
+
+        /* CARD VIEW */
+        #card-view { display: none; background: #2c2c2e; min-height: 100%; padding: 40px; flex-direction: row; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        .card-5x7 { width: 7in; height: 5in; background: #fffcf5; padding: 0.3in; box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-family: "Georgia", serif; color: #222; position: relative; box-sizing: border-box; flex-shrink: 0; overflow: hidden; }
+        .c-front { border-bottom: 5px double #111; }
+        .c-header { border-bottom: 2px solid #111; margin-bottom: 10px; padding-bottom: 5px; display: flex; justify-content: space-between; align-items: baseline; }
+        .c-title { font-size: 20pt; font-weight: bold; margin: 0; }
+        .c-meta { font-size: 11pt; font-style: italic; }
+        .c-body { font-size: 10.5pt; line-height: 1.35; }
+        .c-ing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; margin-top: 15px; }
+        .c-ing-list { list-style: none; padding: 0; margin: 0; }
+        .c-ing-list li { border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; padding: 3px 0; }
+        .c-footer { position: absolute; bottom: 15px; right: 20px; font-size: 8pt; color: #aaa; font-family: sans-serif; text-transform: uppercase; }
+
+        @media print {
+            .app-bar, .sidebar, #loader, #add-modal { display: none !important; }
+            .workspace { height: auto; display: block; }
+            .main-stage { overflow: visible; }
+            #card-view { display: block !important; background: white; padding: 0; }
+            .card-5x7 { border: 1px solid #000; box-shadow: none; page-break-inside: avoid; margin-bottom: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="add-modal">
+    <div class="modal-card">
+        <div class="modal-header">New Recipe</div>
+        <div class="form-row">
+            <label class="form-label">Recipe Title</label>
+            <input type="text" id="new-title" placeholder="e.g. Ambrose Chili">
+        </div>
+        <div class="form-row" style="display:flex; gap:10px;">
+            <div style="flex:1">
+                <label class="form-label">Category</label>
+                <select id="new-cat">
+                    <option>Entree</option><option>BBQ & Sauces</option><option>Sweets</option><option>Soups & Sides</option><option>Curing & Pickling</option>
+                </select>
+            </div>
+            <div style="flex:1">
+                <label class="form-label">Yields</label>
+                <input type="text" id="new-yield" placeholder="e.g. 4 Servings">
+            </div>
+        </div>
+        <div class="form-row" style="display:flex; gap:10px;">
+            <div style="flex:1">
+                <label class="form-label">Prep Time</label>
+                <input type="text" id="new-prep" placeholder="e.g. 15 mins">
+            </div>
+            <div style="flex:1">
+                <label class="form-label">Total Time</label>
+                <input type="text" id="new-total" placeholder="e.g. 1 hour">
+            </div>
+        </div>
+        <div class="form-row">
+            <label class="form-label">Description</label>
+            <textarea id="new-desc" rows="2" placeholder="Brief description..."></textarea>
+        </div>
+        <div class="form-row">
+            <label class="form-label">Ingredients (Line by line)</label>
+            <textarea id="new-ing" rows="5" placeholder="1 cup Flour&#10;2 Eggs&#10;1 tsp Salt"></textarea>
+        </div>
+        <div class="form-row">
+            <label class="form-label">Instructions (Line by line)</label>
+            <textarea id="new-steps" rows="5" placeholder="Mix ingredients.&#10;Bake at 350.&#10;Eat."></textarea>
+        </div>
+        <div style="text-align:right; margin-top:20px;">
+            <button class="btn-outline" onclick="closeModal()">Cancel</button>
+            <button class="btn-black" onclick="submitNewRecipe()">Create Recipe</button>
+        </div>
+    </div>
+</div>
+
+<div id="loader">
+    <div class="book-cover">
+        <div class="book-title">The Ambrose<br>Cookbook</div>
+        <div class="book-sub">Cloud Edition</div>
+        <div id="connect-ui">
+            <button class="btn-black" onclick="connectToFirebase()">Connect to Cloud</button>
+        </div>
+        <div id="status-text" style="margin-top:15px; color:#d32f2f;"></div>
+        <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+            <div style="font-size: 0.8em; color: #999; margin-bottom: 10px;">First time setup only</div>
+            <button class="btn-outline" onclick="document.getElementById('import-input').click()">Import JSON Backup</button>
+            <input type="file" id="import-input" accept=".json" onchange="importData(this)" style="display:none">
+        </div>
+    </div>
+</div>
+
+<div class="app-bar">
+    <div class="app-title">
+        Ambrose Collection 
+        <span class="live-badge" id="sync-badge">● LIVE</span>
+    </div>
+    <div class="bar-controls">
+        <button class="btn-action" onclick="openModal()">+ New Recipe</button>
+        <div style="width:1px; height:15px; background:#555; margin:0 5px;"></div>
+        <input type="text" id="search-input" placeholder="Search..." onkeyup="renderSidebar()">
+        <button class="tool-btn active" id="btn-web" onclick="setView('web')">Web</button>
+        <button class="tool-btn" id="btn-card" onclick="setView('card')">Cards</button>
+        <button class="tool-btn" onclick="window.print()">Print</button>
+    </div>
+</div>
+
+<div class="workspace">
+    <div class="sidebar" id="sidebar-list"></div>
+    <div class="main-stage">
+        <div id="web-view">
+            <div style="text-align:center; color:#999; margin-top:100px;">Select a recipe to view details.</div>
+        </div>
+        <div id="card-view"></div>
+    </div>
+</div>
+
+<script>
+    // --- FIREBASE CONFIGURATION ---
+    // TODO: Paste your Firebase Config Object below
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "SENDER_ID",
+        appId: "APP_ID"
+    };
+
+    let db;
+    let recipes = [];
+    let currentId = null;
+
+    // --- INITIALIZATION ---
+    function connectToFirebase() {
+        document.getElementById('status-text').textContent = "Connecting...";
+        try {
+            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            
+            db.collection("recipes").onSnapshot((snapshot) => {
+                recipes = [];
+                snapshot.forEach((doc) => {
+                    let data = doc.data();
+                    data.id = doc.id; 
+                    recipes.push(data);
+                });
+                
+                recipes.sort((a,b) => a.title.localeCompare(b.title));
+                document.getElementById('loader').style.display = 'none';
+                renderSidebar();
+                
+                if(currentId) {
+                    const fresh = recipes.find(r => r.id === currentId);
+                    if(fresh) selectRecipe(fresh.id, false); 
+                } else if (recipes.length > 0) {
+                    selectRecipe(recipes[0].id, false);
+                }
+            }, (error) => {
+                document.getElementById('status-text').textContent = "Error: " + error.message;
+            });
+        } catch (e) {
+            document.getElementById('status-text').textContent = "Config Error. Check Code.";
+        }
+    }
+
+    function importData(input) {
+        const file = input.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            if(!confirm("Upload recipes to Cloud?")) return;
+            if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            const items = JSON.parse(e.target.result);
+            const batch = db.batch();
+            (Array.isArray(items)?items:[items]).forEach(item => {
+                const newRef = db.collection("recipes").doc();
+                delete item.id; 
+                batch.set(newRef, item);
+            });
+            await batch.commit();
+            alert("Uploaded!");
+        };
+        reader.readAsText(file);
+    }
+
+    // --- NEW RECIPE LOGIC ---
+    function openModal() { document.getElementById('add-modal').style.display = 'flex'; }
+    function closeModal() { document.getElementById('add-modal').style.display = 'none'; }
+    
+    function submitNewRecipe() {
+        const title = document.getElementById('new-title').value;
+        if(!title) return alert("Title required");
+        
+        // Parse Ingredients (Simple split by line)
+        const ingLines = document.getElementById('new-ing').value.split('\n').filter(l => l.trim());
+        const ingredients = [{
+            group_name: "Main",
+            items: ingLines.map(l => { return { name: l, amount: "" }; }) // Simple mapping
+        }];
+
+        const newRecipe = {
+            title: title,
+            category: document.getElementById('new-cat').value,
+            yields: document.getElementById('new-yield').value,
+            prep_time: document.getElementById('new-prep').value,
+            total_time: document.getElementById('new-total').value,
+            description: document.getElementById('new-desc').value,
+            rating: 0,
+            ingredients: ingredients,
+            instructions: document.getElementById('new-steps').value.split('\n').filter(l => l.trim()),
+            history: [],
+            times_cooked: 0
+        };
+
+        db.collection('recipes').add(newRecipe).then(docRef => {
+            closeModal();
+            selectRecipe(docRef.id);
+        });
+    }
+
+    // --- RENDER LOGIC ---
+    function renderSidebar() {
+        const term = document.getElementById('search-input').value.toLowerCase();
+        const list = document.getElementById('sidebar-list');
+        list.innerHTML = '';
+        const filtered = recipes.filter(r => r.title.toLowerCase().includes(term));
+        const cats = [...new Set(filtered.map(r => r.category || 'Uncategorized'))].sort();
+
+        cats.forEach(cat => {
+            const group = document.createElement('div');
+            group.innerHTML = `<div class="group-header">${cat}</div>`;
+            filtered.filter(r => (r.category||'Uncategorized') === cat).forEach(r => {
+                const item = document.createElement('div');
+                item.className = 'list-item';
+                item.dataset.id = r.id;
+                item.onclick = () => selectRecipe(r.id);
+                item.innerHTML = `<div class="li-title">${r.title}</div><div class="li-meta"><span>${'🍅'.repeat(r.rating||0)}</span></div>`;
+                group.appendChild(item);
+            });
+            list.appendChild(group);
+        });
+    }
+
+    function selectRecipe(id, scroll = true) {
+        currentId = id;
+        const r = recipes.find(x => x.id === id);
+        if(!r) return;
+        document.querySelectorAll('.list-item').forEach(el => el.classList.remove('selected'));
+        const active = document.querySelector(`.list-item[data-id='${id}']`);
+        if(active) { active.classList.add('selected'); if(scroll) active.scrollIntoView({behavior:"smooth",block:"center"}); }
+        renderWeb(r); renderCards(r);
+    }
+
+    function renderWeb(r) {
+        const v = document.getElementById('web-view');
+        let ingHtml = '';
+        if(r.ingredients) r.ingredients.forEach(g => {
+            ingHtml += `<div class="wv-ing-group"><div class="wv-ing-head">${g.group_name}</div><ul class="wv-ing-list">`;
+            g.items.forEach(i => ingHtml += `<li><span>${i.name}</span><b>${i.amount}</b></li>`);
+            ingHtml += `</ul></div>`;
+        });
+
+        let logHtml = '';
+        if(r.history && r.history.length) {
+            r.history.forEach(h => logHtml += `<div class="log-item"><div class="log-date">${h.date}</div><div><span class="log-user">${h.user || 'Guest'}:</span> ${'🍅'.repeat(h.rating)} ${h.note}</div></div>`);
+        } else { logHtml = `<div style="color:#999;font-style:italic;">No history.</div>`; }
+
+        v.innerHTML = `
+            <div class="wv-header">
+                <div><h1 class="wv-title">${r.title}</h1><div class="wv-desc">${r.description || ''}</div></div>
+                <div style="text-align:right"><div>${'🍅'.repeat(r.rating||0)}</div><div style="margin-top:5px;">${r.yields||''}</div><div>${r.total_time||''}</div></div>
+            </div>
+            <div class="wv-layout">
+                <div>${ingHtml}</div>
+                <div class="wv-steps">
+                    <h3>Instructions</h3>
+                    <ol>${(r.instructions||[]).map(s => `<li>${s}</li>`).join('')}</ol>
+                    ${r.notes ? `<div class="chef-note"><strong>Note:</strong> ${r.notes}</div>` : ''}
+                    <div class="log-section">
+                        <div style="display:flex; justify-content:space-between; align-items:center;"><strong>Cooking Log</strong><button class="btn-outline" onclick="toggleLogBox()">+ Add Comment</button></div>
+                        <div id="new-log-form" class="add-log-box">
+                            <div style="margin-bottom:10px; display:flex; gap:10px;">
+                                <input type="text" id="log-user" placeholder="Your Name" style="flex:1">
+                                <input type="date" id="log-date" value="${new Date().toISOString().split('T')[0]}" style="width:140px;">
+                                <select id="log-rating" style="width:60px;"><option value="5">5</option><option value="4">4</option><option value="3">3</option></select>
+                            </div>
+                            <input type="text" id="log-note" placeholder="Notes..." style="width:100%; margin-bottom:10px;">
+                            <button class="btn-black" onclick="saveLog('${r.id}')">Save Log</button>
+                        </div>
+                        <div style="margin-top:15px;">${logHtml}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderCards(r) {
+        const v = document.getElementById('card-view');
+        let flatIng = '';
+        if(r.ingredients) r.ingredients.forEach(g => {
+            flatIng += `<li style="grid-column:1/-1;font-weight:bold;border:none;margin-top:5px;">${g.group_name}</li>`;
+            g.items.forEach(i => flatIng += `<li><span>${i.name}</span><b>${i.amount}</b></li>`);
+        });
+        v.innerHTML = `
+            <div class="card-5x7 c-front">
+                <div class="c-header"><div class="c-title">${r.title}</div><div class="c-meta">${'🍅'.repeat(r.rating||0)}</div></div>
+                <div class="c-body"><div style="font-style:italic;margin-bottom:10px;">${r.description||''}</div><div style="font-size:9pt;margin-bottom:10px;"><strong>Prep:</strong> ${r.prep_time} | <strong>Total:</strong> ${r.total_time}</div>
+                <div class="c-ing-grid"><ul class="c-ing-list" style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:0 15px;">${flatIng}</ul></div></div>
+                <div class="c-footer">Front • Ambrose Collection</div>
+            </div>
+            <div class="card-5x7">
+                <div class="c-header"><div class="c-title" style="font-size:16pt">Instructions</div></div>
+                <div class="c-body"><ol style="padding-left:20px;margin:10px 0;">${(r.instructions||[]).map(s => `<li>${s}</li>`).join('')}</ol>${r.notes?`<div style="margin-top:15px;border-top:1px dashed #000;padding-top:5px;font-style:italic;font-size:9pt;">Note: ${r.notes}</div>`:''}</div>
+                <div class="c-footer">Back • Ambrose Collection</div>
+            </div>
+        `;
+    }
+
+    function toggleLogBox() { document.getElementById('new-log-form').classList.toggle('active'); }
+    
+    function saveLog(docId) {
+        const user = document.getElementById('log-user').value || 'Anonymous';
+        const date = document.getElementById('log-date').value;
+        const rating = parseInt(document.getElementById('log-rating').value);
+        const note = document.getElementById('log-note').value;
+        if(!note) return alert("Note required");
+
+        const r = recipes.find(x => x.id === docId);
+        let history = r.history || [];
+        history.push({ user, date, rating, note });
+        
+        db.collection("recipes").doc(docId).update({ history: history }).then(() => { toggleLogBox(); });
+    }
+
+    function setView(mode) {
+        document.getElementById('web-view').style.display = mode === 'web' ? 'block' : 'none';
+        document.getElementById('card-view').style.display = mode === 'card' ? 'flex' : 'none';
+        document.getElementById('btn-web').classList.toggle('active', mode === 'web');
+        document.getElementById('btn-card').classList.toggle('active', mode === 'card');
+    }
+</script>
+</body>
+</html>
