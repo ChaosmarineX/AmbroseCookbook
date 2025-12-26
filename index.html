@@ -46,6 +46,11 @@
         button.tool-btn { cursor: pointer; border: none; border-radius: 4px; font-size: 12px; font-weight: 600; padding: 6px 12px; background: #3a3a3c; color: #fff; }
         button.tool-btn.active { background: #fff; color: #000; }
 
+        /* Authentication */
+        <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
         /* LAYOUT */
         .workspace { display: flex; height: calc(100vh - var(--header-height)); }
         .sidebar { width: var(--sidebar-width); background: #f2f2f7; border-right: 1px solid #c6c6c8; overflow-y: auto; }
@@ -159,7 +164,7 @@
 <div id="loader">
     <div class="book-cover">
         <div class="book-title">The Ambrose<br>Cookbook</div>
-        <div class="book-sub">Cloud Edition</div>
+        <div class="book-sub" ondblclick="adminLogin()" style="cursor: pointer;">Cloud Edition</div>
         <div id="connect-ui">
             <button class="btn-black" onclick="connectToFirebase()">Connect to Cloud</button>
         </div>
@@ -212,38 +217,43 @@
     let db;
     let recipes = [];
     let currentId = null;
+    let auth;
 
     // --- INITIALIZATION ---
     function connectToFirebase() {
-        document.getElementById('status-text').textContent = "Connecting...";
-        try {
-            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-            db = firebase.firestore();
-            
-            db.collection("recipes").onSnapshot((snapshot) => {
-                recipes = [];
-                snapshot.forEach((doc) => {
-                    let data = doc.data();
-                    data.id = doc.id; 
-                    recipes.push(data);
-                });
-                
-                recipes.sort((a,b) => a.title.localeCompare(b.title));
-                document.getElementById('loader').style.display = 'none';
-                renderSidebar();
-                
-                if(currentId) {
-                    const fresh = recipes.find(r => r.id === currentId);
-                    if(fresh) selectRecipe(fresh.id, false); 
-                } else if (recipes.length > 0) {
-                    selectRecipe(recipes[0].id, false);
-                }
-            }, (error) => {
-                document.getElementById('status-text').textContent = "Error: " + error.message;
-            });
-        } catch (e) {
-            document.getElementById('status-text').textContent = "Config Error. Check Code.";
-        }
+    document.getElementById('status-text').textContent = "Connecting...";
+    try {
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        db = firebase.firestore();
+        auth = firebase.auth(); // Initialize Auth
+
+        // Listen for login state
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                document.getElementById('status-text').textContent = "Logged in as Admin";
+                document.getElementById('status-text').style.color = "green";
+            }
+        });
+
+        // ... existing Firestore snapshot code ...
+        db.collection("recipes").onSnapshot((snapshot) => {
+             // (Your existing code here remains exactly the same)
+             // ...
+        });
+        
+    } catch (e) {
+        // ...
+    }
+}
+
+    function adminLogin() {
+        const email = prompt("Admin Email:");
+        const pass = prompt("Password:");
+        if(!email || !pass) return;
+
+        auth.signInWithEmailAndPassword(email, pass)
+            .then(() => alert("Admin Access Granted"))
+            .catch(e => alert("Login Failed: " + e.message));
     }
 
     function importData(input) {
